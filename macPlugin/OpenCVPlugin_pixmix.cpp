@@ -2,7 +2,6 @@
 #include <opencv2/opencv.hpp>
 
 #include "ArUcoMarker/ArUcoMarker.h"
-#include "DR/Siltanen/Siltanen.h"
 #include "DR/PixMix/PixMixMarkerHiding.h"
 #include "CameraCalibration/Calibration.h"
 
@@ -48,14 +47,12 @@ extern "C" {
         //process incoming stream before we can use it
         frame = Mat(height, width, CV_8UC3, static_cast<void*>(bytes));
         
-        
-        dr::Siltanen ip(marker, 256, true);
+        dr::PixMixMarkerHiding pmMk(marker, true);
         
         if (!frame.empty()){
             
             Mat color, inpainted, viz;
             color = frame.clone();
-            //resize(color, color, Size(color.cols/2, color.rows/2));
             flip(color, color, 1);
             
             vector<Point2f> corners;
@@ -63,13 +60,38 @@ extern "C" {
             //marker.EstimatePoseSingleMarkers(cameraMatrix, distCoeffs);
             marker.GetCorners(corners);
             
-            ip.Run(color, inpainted, corners);
+            // inpainting
+            if (corners.size() > 0 && (is_Reset)) //r (reset) key
+            {
+                Mat reset_text = Mat::zeros(color.rows, color.cols, color.type());
+                putText(reset_text, String("corners"), Point(50, 75), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0, 0, 255));
+                flip(reset_text, reset_text, -1);
+                color += reset_text;
+                
+                //dr::det::PixMixParams params;
+                //params.alpha = 0.5f;
+                //params.maxItr = 10;
+
+                //pmMk.Reset(color, corners, params);
+            }
+            else if (corners.size() > 0 && pmMk.IsInitiated())
+            {
+                Mat inpaint_text = Mat::zeros(color.rows, color.cols, color.type());
+                putText(inpaint_text, String("inpainted"), Point(50, 95), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0, 255, 0));
+                flip(inpaint_text, inpaint_text, -1);
+                color += inpaint_text;
+                
+                //dr::det::PixMixParams params;
+                //params.alpha = 0.0f;
+                //params.maxItr = 1;
+
+                //pmMk.Run(color, inpainted, corners, params);
+            }
 
             if (!inpainted.empty())
             {
                 //marker.DrawAxis(inpainted, viz, cameraMatrix, distCoeffs, 0.05f);
                 viz = inpainted.clone();
-                //resize(viz, viz, Size(viz.cols*2, viz.rows*2));
             }
             else
             {
@@ -78,7 +100,6 @@ extern "C" {
                 putText(normal_text, String("normal"), Point(50, 55), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(255, 0, 0));
                 flip(normal_text, normal_text, -1);
                 viz += normal_text;
-                //resize(viz, viz, Size(viz.cols*2, viz.rows*2));
             }
             viz.copyTo(unity_tex);
         }
